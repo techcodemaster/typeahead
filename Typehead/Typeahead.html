@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html ng-app="Typeahead">
+<head>
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        .dropdown-menu {
+            max-height: 300px;
+            overflow: auto;
+        }
+    </style>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.2/angular.js"></script>
+    <script src="http://angular-ui.github.io/bootstrap/ui-bootstrap-tpls-0.10.0.js"></script>
+    <link rel="stylesheet" href="http://css-spinners.com/css/spinner/ball.css" type="text/css">
+    
+</head>
+<body>
+    <div class="container-fluid" ng-controller="TypeaheadCtrl">
+        <h4>How can I open the typeahead dropdown automatically when event is triggered?</h4>
+        <p>
+           Created a directive to auto focus
+            <br />
+            <br />
+            Country:
+            <select id="CountryId"class="selectpicker" ng-model="Country" name="Country" list="datalistcit" ng-options="x.Text for x in Countrylist" ng-change="getCity(Country);open();"></select>
+            <br />
+            <br />
+            City:
+            <input type="text" focus-me="open" ng-focus="onFocus($event)" ng-trim="false" ng-model="selected" empty-typeahead typeahead="state for state in states" class="form-control" />
+            <br />
+            <div ng-show="loading">
+                <div class="ball-loader">
+                    <button class="btn btn-lg btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading data...</button>
+                </div>
+                </div>
+        </p>
+        <pre ng-show="opened">Model: {{selected | json}}</pre>
+    </div>
+</body>
+</html>
+<script>
+    angular.element(document).ready(function () {
+        console.log('Hello World');
+    });
+
+    (function () {
+        var secretEmptyKey = '[$empty$]'
+        angular.module('Typeahead', ['ui.bootstrap'])
+            .service("Service", function ($http) {
+                this.getCountrylist = function () {
+                    return $http.get("api/Typeahead");
+                }
+            }).directive('focusMe', function ($timeout, $parse) {
+              return {
+                  //scope: true,   // optionally create a child scope
+                  link: function (scope, element, attrs) {
+                      var model = $parse(attrs.focusMe);
+                      scope.$watch(model, function (value) {
+                          
+                          if (value === true) {
+                              $timeout(function () {
+                                  element[0].focus();
+                              });
+                          }
+                      });
+                  }
+              };
+          }).directive('emptyTypeahead', function () {
+              return {
+                  require: 'ngModel',
+                  link: function (scope, element, attrs, modelCtrl) {
+                      // this parser run before typeahead's parser
+                      modelCtrl.$parsers.unshift(function (inputValue) {
+                          var value = (inputValue ? inputValue : secretEmptyKey); // replace empty string with secretEmptyKey to bypass typeahead-min-length check
+                          modelCtrl.$viewValue = value; // this $viewValue must match the inputValue pass to typehead directive
+                          return value;
+                      });
+
+                      // this parser run after typeahead's parser
+                      modelCtrl.$parsers.push(function (inputValue) {
+                          return inputValue === secretEmptyKey ? '' : inputValue; // set the secretEmptyKey back to empty string
+                      });
+                  }
+              }
+          }).controller('TypeaheadCtrl', function ($scope, $http, $timeout, Service) {
+              $scope.loading = true;
+              $scope.selected = undefined;             
+              Service.getCountrylist().success(function (data) {
+                  $scope.loading = false;
+                  $scope.Countrylist = data;
+              })            
+              $scope.getCity = function (Country) {
+                  $scope.loading = true;
+                  $http({ method: 'GET', url: 'api/Typeahead/' + Country.Text }).success(function (data) {
+                      $scope.loading = false;
+                      var myJsonString = JSON.stringify(data);                    
+                      $scope.states = data;                     
+                      $scope.open = true;
+
+                  });
+                  $scope.open = false;
+                  
+              };  
+              $scope.onFocus = function (e) {
+                  $timeout(function () {
+                      $(e.target).trigger('input');
+                      $(e.target).trigger('change'); 
+                  });
+              };             
+             
+          });
+    }());
+</script>
